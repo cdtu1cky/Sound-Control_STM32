@@ -44,45 +44,47 @@ int filter(int newValue) {
 目标：搭建开发环境，点亮第一颗LED。
 问题：程序下载后LED没反应。
 解决：检查发现GPIO口初始化函数中，时钟使能语句写错了位置。纠正后成功点亮。
-重温了以前关于学习使用stm32库函数的知识，再次学习了怎么调动库函数
+重温了以前关于学习使用stm32库函数的知识，再次学习了怎么调动库函数。
+硬件连接：![这里是图片描述](点灯.jpg)
 这是我总结了在点亮led灯过程中以及后续会常用的关于gpio的库函数：
+```c
 void RCC_AHBPeriphClockCmd(uint32_t RCC_AHBPeriph, FunctionalState NewState);
 void RCC_APB2PeriphClockCmd(uint32_t RCC_APB2Periph, FunctionalState NewState);
 void RCC_APB1PeriphClockCmd(uint32_t RCC_APB1Periph, FunctionalState NewState);
 
-void GPIO_DeInit(GPIO_TypeDef* GPIOx);   复位
-void GPIO_AFIODeInit(void);    复位
+void GPIO_DeInit(GPIO_TypeDef* GPIOx);  // 复位
+void GPIO_AFIODeInit(void);  //  复位
 void GPIO_Init(GPIO_TypeDef* GPIOx, GPIO_InitTypeDef* GPIO_InitStruct);
-用结构体的参数来初始化gpio口
+//用结构体的参数来初始化gpio口
 void GPIO_StructInit(GPIO_InitTypeDef* GPIO_InitStruct);
-把结构体变量赋予一个默认值
+//把结构体变量赋予一个默认值
 uint8_t GPIO_ReadInputDataBit(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
- 读取输入数据寄存器某一个端口的输入值
+ //读取输入数据寄存器某一个端口的输入值
 uint16_t GPIO_ReadInputData(GPIO_TypeDef* GPIOx);
-读取整个输入数据寄存器
+//读取整个输入数据寄存器
 uint8_t GPIO_ReadOutputDataBit(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);
-读取输出数据寄存器的 某一个位
+//读取输出数据寄存器的 某一个位
 uint16_t GPIO_ReadOutputData(GPIO_TypeDef* GPIOx);
-读取整个输出数据寄存器
-（4个读取函数）
-void GPIO_SetBits(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);把指定端口 设置为高电平
-void GPIO_ResetBits(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);把指定端口 设置为低电平
+//读取整个输出数据寄存器
+//（4个读取函数）
+void GPIO_SetBits(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);//把指定端口 设置为高电平
+void GPIO_ResetBits(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin);//把指定端口 设置为低电平
 void GPIO_WriteBit(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, BitAction BitVal);
 void GPIO_Write(GPIO_TypeDef* GPIOx, uint16_t PortVal);
-（4个写入函数）
+//（4个写入函数）
 
-关于GPIO_Mode有：
-{ GPIO_Mode_AIN = 0x0,  模拟输入 
-  GPIO_Mode_IN_FLOATING = 0x04,  浮空输入
-  GPIO_Mode_IPD = 0x28,  下拉
-  GPIO_Mode_IPU = 0x48,  上拉
-  GPIO_Mode_Out_OD = 0x14, 开漏输出    低电平具有驱动能力
-  GPIO_Mode_Out_PP = 0x10,推挽输出      点灯使用    高低电平均有驱动能力 
-  GPIO_Mode_AF_OD = 0x1C,复用开漏
-  GPIO_Mode_AF_PP = 0x18，复用推挽
+//关于GPIO_Mode有：
+{ GPIO_Mode_AIN = 0x0,  //模拟输入 
+  GPIO_Mode_IN_FLOATING = 0x04,  //浮空输入
+  GPIO_Mode_IPD = 0x28, // 下拉
+  GPIO_Mode_IPU = 0x48,  //上拉
+  GPIO_Mode_Out_OD = 0x14, //开漏输出    低电平具有驱动能力
+  GPIO_Mode_Out_PP = 0x10,//推挽输出      点灯使用    高低电平均有驱动能力 
+  GPIO_Mode_AF_OD = 0x1C,//复用开漏
+  GPIO_Mode_AF_PP = 0x18，//复用推挽
 }GPIOMode_TypeDef;
 
-常用led初始化 代码：
+//常用led初始化 代码：
 void LED_Init(void)
 {
 RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA,ENABLE);
@@ -93,14 +95,15 @@ GPIO_InitStructure.GPIO_Speed=GPIO_Speed_50MHz;
  GPIO_Init(GPIOA,&GPIO_InitStructure);
 GPIO_SetBits(GPIOA, GPIO_Pin_1 | GPIO_Pin_2);//设置PA1和PA2引脚为高电平
 }
-
+```
 2026年3月9日：学习按键控制的知识
 目标：搭建开发环境，通过使用按键控制灯的亮灭，学习如何封装函数
 困难：运行代码时总是报错，但是在仔细检查我写的每一个代码都无误
 解决：新手小白犯的这种低级错误，就是每在一个xxx.c文件写一个函数就忘记去xxx.h文件里声明可以使用
+硬件连接：![这里是图片描述](按键控制灯.jpg)
 同样，我总结出了常会用到的库函数：
-
-按键初始化
+```c
+//按键初始化
 void Key_Init(void)
 {
 	RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);		//开启GPIOB的时钟
@@ -166,7 +169,7 @@ while (1)
 	}
    }
 }
-
+```
 后续计划
 加入FreeRTOS，让系统能够同时处理更多任务。
 
