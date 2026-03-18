@@ -96,7 +96,7 @@ GPIO_InitStructure.GPIO_Speed=GPIO_Speed_50MHz;
 GPIO_SetBits(GPIOA, GPIO_Pin_1 | GPIO_Pin_2);//设置PA1和PA2引脚为高电平
 }
 ```
-2026年3月9日：学习按键控制的知识
+2026年3月9日：重温学习按键控制的知识
 目标：搭建开发环境，通过使用按键控制灯的亮灭，学习如何封装函数
 困难：运行代码时总是报错，但是在仔细检查我写的每一个代码都无误
 解决：新手小白犯的这种低级错误，就是每在一个xxx.c文件写一个函数就忘记去xxx.h文件里声明可以使用
@@ -170,6 +170,103 @@ while (1)
    }
 }
 ```
+2026年3月10日至3月14日：重温adc的知识
+在课余时间，通过江协科技 STM32 教程，大致了解了adc原理与配置，并重新学习了ADC 单次转换模式，理解了采样时间、数据对齐、软件触发等关键配置。
+以下是我根据视频总结出adc.c会常用的库函数
+```c
+//adc初始化函数：
+rcc库函数 void RCC_ADCCLKConfig(uint32_t RCC_PCLK2); //用于配置adcclk分频器
+
+void ADC_DeInit(ADC_TypeDef* ADCx);    //恢复缺省配置
+void ADC_Init(ADC_TypeDef* ADCx, ADC_InitTypeDef* ADC_InitStruct);//init初始化
+void ADC_StructInit(ADC_InitTypeDef* ADC_InitStruct);//结构体初始化
+
+对adc的一些基本功能和规则组的配置
+{
+void ADC_Cmd(ADC_TypeDef* ADCx, FunctionalState NewState);//给adc上电
+void ADC_DMACmd(ADC_TypeDef* ADCx, FunctionalState NewState);
+//开启dma输出信号
+void ADC_ITConfig(ADC_TypeDef* ADCx, uint16_t ADC_IT, FunctionalState NewState);//中断输出控制
+void ADC_ResetCalibration(ADC_TypeDef* ADCx);//复位校准
+FlagStatus ADC_GetResetCalibrationStatus(ADC_TypeDef* ADCx);//获取复位校准 状态
+void ADC_StartCalibration(ADC_TypeDef* ADCx);//开始校准
+FlagStatus ADC_GetCalibrationStatus(ADC_TypeDef* ADCx);//获取开始校准状态
+void ADC_SoftwareStartConvCmd(ADC_TypeDef* ADCx, FunctionalState NewState);//软件触发的函数
+FlagStatus ADC_GetSoftwareStartConvStatus(ADC_TypeDef* ADCx);//获取软件开始转换状态
+
+  //配置间断模式的两个函数
+  {
+void ADC_DiscModeChannelCountConfig(ADC_TypeDef* ADCx, uint8_t Number);//每隔几个通道间断一次
+void ADC_DiscModeCmd(ADC_TypeDef* ADCx, FunctionalState NewState);
+//是不是启用间断模式
+   }
+void ADC_RegularChannelConfig(ADC_TypeDef* ADCx, uint8_t ADC_Channel, uint8_t Rank, uint8_t ADC_SampleTime);//adc——规则组通道配置    （重要）
+第一个参数 ADCx，第二个ADC_Channel指定通道，第三个Rank序列几的位置，第四个SampleTIime指定通道的采样时间
+void ADC_ExternalTrigConvCmd(ADC_TypeDef* ADCx, FunctionalState NewState);//adc_外部触发转换控制（是否允许外部触发转换）
+uint16_t ADC_GetConversionValue(ADC_TypeDef* ADCx);//adc_获取转换值
+（重要）获取ad转换的数据寄存器，读取转换结果 需要用到这个函数
+uint32_t ADC_GetDualModeConversionValue(void);//adc_获取双模式转换值（双adc模式读取转换结果的函数）
+
+
+}
+//对adc注入组进行配置
+
+{
+void ADC_AutoInjectedConvCmd(ADC_TypeDef* ADCx, FunctionalState NewState);
+void ADC_InjectedDiscModeCmd(ADC_TypeDef* ADCx, FunctionalState NewState);
+void ADC_ExternalTrigInjectedConvConfig(ADC_TypeDef* ADCx, uint32_t ADC_ExternalTrigInjecConv);
+void ADC_ExternalTrigInjectedConvCmd(ADC_TypeDef* ADCx, FunctionalState NewState);
+void ADC_SoftwareStartInjectedConvCmd(ADC_TypeDef* ADCx, FunctionalState NewState);
+FlagStatus ADC_GetSoftwareStartInjectedConvCmdStatus(ADC_TypeDef* ADCx);
+void ADC_InjectedChannelConfig(ADC_TypeDef* ADCx, uint8_t ADC_Channel, uint8_t Rank, uint8_t ADC_SampleTime);
+void ADC_InjectedSequencerLengthConfig(ADC_TypeDef* ADCx, uint8_t Length);
+void ADC_SetInjectedOffset(ADC_TypeDef* ADCx, uint8_t ADC_InjectedChannel, uint16_t Offset);
+uint16_t ADC_GetInjectedConversionValue(ADC_TypeDef* ADCx, uint8_t ADC_InjectedChannel);
+
+
+}
+
+//对模拟看门狗进行配置
+
+{
+void ADC_AnalogWatchdogCmd(ADC_TypeDef* ADCx, uint32_t ADC_AnalogWatchdog);//是否启动模拟看门狗
+void ADC_AnalogWatchdogThresholdsConfig(ADC_TypeDef* ADCx, uint16_t HighThreshold, uint16_t LowThreshold);//配置高低阈值
+void ADC_AnalogWatchdogSingleChannelConfig(ADC_TypeDef* ADCx, uint8_t ADC_Channel);//配置看门的通道
+
+}
+void ADC_TempSensorVrefintCmd(FunctionalState NewState);//adc_温度传感器,内部参考电压控制
+FlagStatus ADC_GetFlagStatus(ADC_TypeDef* ADCx, uint8_t ADC_FLAG);//获取标志位状态
+void ADC_ClearFlag(ADC_TypeDef* ADCx, uint8_t ADC_FLAG);//清除标志位
+ITStatus ADC_GetITStatus(ADC_TypeDef* ADCx, uint16_t ADC_IT);//获取中断状态
+void ADC_ClearITPendingBit(ADC_TypeDef* ADCx, uint16_t ADC_IT);//清除中断挂起位
+
+
+```
+2026年3月15日至3月18日:声控基础实现
+一.在 STM32F103 上配置 ADC1 通道 1（PA1），成功读取麦克风模块的模拟输出电压,通过调试器观察adc_value的变化，掌握了用硬件调试定位问题的方法  
+二.将 ADC 值与设定的阈值比较，实现了基础声控逻辑：  
+1.声音超过阈值时 LED 点亮  
+2.安静时 LED 熄灭
+
+硬件连接：
+![这里是图片描述](声控灯.jpg)
+
+说话时亮灯：
+![这里是图片描述](说话时点亮.jpg)
+记录了不同环境下的数值范围，为后续算法优化提供依据  
+三.遇到的主要问题:  
+1.刚开始我使用的低电平点亮led灯，结果出现初始时常亮，对着麦克风说话是闪灭闪灭的状态，即使我反复确认了我的led.c的代码初始时设置的状态确实是使PA0口设置为高电平，在询问ai后才知道这是我的硬件接线逻辑认知偏差，主观认为 LED 低电平点亮，但实际接线为STM32 PA0 → LED长脚（正极） → LED短脚（负极） → GND，该接线天然是高电平点亮（PA0 输出 3.3V 时 LED 形成电压差点亮，0V 时熄灭），与代码中 “低电平点亮” 的逻辑完全反向，直接导致 LED 初始常亮。
+2.刚开始 ADC 读数一直为 0 ,检查后发现是 GPIO 模式未配置为模拟输入  
+3.环境噪音导致误触发,决定下一步引入软件滤波  
+四.当前进度：  
+声控基础功能已跑通  
+下一步：学习移动平均滤波，提升系统稳定性
+
+
+
+
+
+
 后续计划
 加入FreeRTOS，让系统能够同时处理更多任务。
 
