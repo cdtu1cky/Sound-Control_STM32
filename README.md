@@ -389,12 +389,13 @@ int main(void)
 
 三.测试数据记录
 ![这里是图片描述](串口adc值调阈值.jpg)
-
+![这里是图片描述](安静环境.png)
 四.得出最佳阈值
 采用公式：  
 `阈值 = (安静最大值 + 说话最小值) ÷ 2`  
 代入数据：  
 `(29 + 162) ÷ 2 ≈ 95`
+最终阈值我将其设定为100
 五.问题梳理
 最初尝试使用标准库直接配置USART，通过 printf打印数据，结果我发现下载到芯片后，LED 不响应，串口无数据，这一点我苦恼很久都没找出原因
 我通过询问ai后，他给我的答复是printf这个函数加入循环后阻塞了程序，导致灯来不及响应
@@ -410,8 +411,53 @@ int main(void)
 2.LED 响应正常，未出现卡死
 3.调试与主功能互不干扰
 于是我总结了经验：在 STM32 调试初期，使用稳定可靠的现成库可大幅减少低级错误，将精力集中在业务逻辑上。
+不过也有其他问题出现：环境噪音导致误触发,决定下一步引入软件滤波
 
+六.明日计划：学习移动平均滤波，提升系统稳定性
 
+2026年3月20日~21日:移动平均滤波实现与串口双打印调试
+
+一.任务目标：  
+1.在 ADC 采样基础上增加移动平均滤波，降低数值抖动  
+2.通过串口同时打印原始值（Raw）与滤波值（Filt），对比滤波效果  
+3.验证滤波对声控灯稳定性的提升
+
+二.具体我是怎么做的
+1. 实现滤波函数  
+   在 AD.c 中添加 AD_GetFiltered(void)，采用长度为 10 的滑动窗口平均：
+```c
+   #define FILTER_LEN 10
+
+   uint16_t AD_GetFiltered(void) {
+       static uint16_t buffer[FILTER_LEN] = {0};
+       static uint8_t index = 0;
+       uint32_t sum = 0;
+
+       buffer[index] = AD_GetValue();
+       index = (index + 1) % FILTER_LEN;
+
+       for (int i = 0; i < FILTER_LEN; i++) {
+           sum += buffer[i];
+       }
+       return sum / FILTER_LEN;
+   }
+```
+我修改了主循环，同时打印原始值与滤波值，在 main.c 中调用两个函数，并通过串口每 2 秒打印一次数据：
+   ```c
+   raw = AD_GetValue();
+   filt = AD_GetFiltered();
+   
+   static uint32_t cnt = 0;
+   if (++cnt >= 40) {
+       char buf[40];
+       sprintf(buf, "Raw:%4d Filt:%4d\r\n", raw, filt);
+       Serial_SendString(buf);
+       cnt = 0;
+   }
+   ```
+这样用滤波值控制 LED 并观察效果，并将阈值判断从原始值切换为滤波值，对比前后稳定性。
+
+调试数据记录
 
 
 后续计划
