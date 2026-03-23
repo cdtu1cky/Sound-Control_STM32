@@ -2,6 +2,9 @@
 基于STM32的声控LED交互系统项目
 # 基于STM32的声控交互系统
 
+## github使用声明
+我之所以想使用GitHub这个网站，一是为了方便直观地展示我的嵌入式项目的学习过程，二是我觉得很多东西他学习了但过会儿时间就会遗忘，所以记录下自己的学习过程我觉得非常重要，他不仅可以帮助我回忆起当初学习的内容，也能记录下我学习过程中的踩过的坑以及自己在闯过难关时的宝贵总结。
+
 ## 项目简介
 我独立完成了一个基于STM32单片机的声控系统。通过麦克风采集声音，经过算法处理后，可以可靠地控制LED灯。这个项目让我深入学习了嵌入式开发的全流程。
 
@@ -248,6 +251,47 @@ void ADC_ClearITPendingBit(ADC_TypeDef* ADCx, uint16_t ADC_IT);//清除中断挂
 1.声音超过阈值时 LED 点亮  
 2.安静时 LED 熄灭
 
+代码实现：![这里是图片描述](声控灯.txt)
+```c
+int main(void)
+{
+    LED_Init();       
+    AD_Init();        
+
+    uint16_t adc_value;
+    uint16_t threshold = 100; 
+    uint8_t stable_cnt = 0;
+
+    while(1)
+    {
+        adc_value = AD_GetValue();
+       
+
+  
+        if(adc_value > threshold)
+        {
+            stable_cnt++;
+            if(stable_cnt >= 3)
+            {
+                LED1_ON();
+                stable_cnt = 3;
+            }
+        }
+        else
+        {
+            stable_cnt--;
+            if(stable_cnt <= 0)
+            {
+                LED1_OFF();
+                stable_cnt = 0;
+            }
+        }
+        
+        Delay_ms(50);
+    }
+}
+```
+
 硬件连接：
 ![这里是图片描述](声控灯.jpg)
 
@@ -268,6 +312,75 @@ void ADC_ClearITPendingBit(ADC_TypeDef* ADCx, uint16_t ADC_IT);//清除中断挂
 
 一.任务背景
 在完成基础声控功能后，为进一步提高系统稳定性并找到最优触发阈值，通过串口打印 ADC 值进行定量测试。
+
+代码实现：![这里是图片描述](调试阈值.txt)
+```c
+#include "stm32f10x.h"
+#include "Delay.h"
+#include "AD.h"
+#include "LED.h"
+#include "Serial.h"     // 江协科技的串口库
+
+// ========== 调试开关 ==========
+// 1 = 开启串口打印（调试用）
+// 0 = 关闭串口打印（正常用）
+#define DEBUG_ENABLE  0
+
+int main(void)
+{
+    LED_Init();          // PA0 高电平点亮
+    AD_Init();           // PA1 ADC 输入
+
+#if DEBUG_ENABLE
+    Serial_Init();       // 初始化串口
+    Serial_SendString("Start\r\n");
+#endif
+
+    uint16_t adc_value;
+    uint16_t threshold = 100;  
+    uint8_t stable_cnt = 0;
+
+    while(1)
+    {
+        // 1. 读取 ADC
+        adc_value = AD_GetValue();
+
+        // 2. 声控逻辑
+        if(adc_value > threshold)
+        {
+            stable_cnt++;
+            if(stable_cnt >= 3)
+            {
+                LED_ON();
+                stable_cnt = 3;
+            }
+        }
+        else
+        {
+            if(stable_cnt > 0) stable_cnt--;
+            if(stable_cnt == 0)
+            {
+                LED_OFF();
+            }
+        }
+
+        // 3. 调试打印
+#if DEBUG_ENABLE
+        static uint32_t cnt = 0;
+        if(++cnt >= 40)          // 每 40 次循环打印一次（约 2 秒）
+        {
+          
+            Serial_Printf("ADC=%d\r\n", adc_value);
+            cnt = 0;
+        }
+#endif
+
+        // 4. 延时
+        Delay_ms(50);
+    }
+}
+```
+硬件连接:![这里是图片描述](阈值调试和加入滤波函数.jpg)
 
 二.调试目标
 1.测量不同环境下的 ADC 数值范围  
