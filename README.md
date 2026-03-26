@@ -608,9 +608,9 @@ int main(void)
 
 整理项目文档，录制演示视频，准备简历投递
 
-2026年3月23日~25日: 防抖机制实现与参数调优
+2026年3月23日~24日: 防抖机制实现与参数调优
 
-一、任务目标
+一.任务目标
 
 1. 解决拍桌子等短时冲击导致的误触发问题(这在之前实现普通声控灯时用过，但是被我用双阈值的方法给代替了，实测时发现单拍桌子的时候灯会微微闪一下，所以考虑到稳定性还是使用防抖计数器)
    
@@ -618,7 +618,7 @@ int main(void)
  
 3. 调优双阈值参数，平衡响应速度与抗干扰能力
 
-二、具体我是怎么做的
+二.具体我是怎么做的
 
 1. 在 main.c 中加入防抖计数器
 
@@ -658,25 +658,17 @@ else if (filt < threshold_off) {
 
 3. 测试不同场景
 
-场景             现象               结论
-
-说话             灯立即亮           响应快
-
-安静             灯灭               正常
-
-拍一下桌子       灯不亮             防抖生效
-
-连续快速拍桌子    偶尔亮            物理正常，持续声音视为有效触发
+![这里是图片描述](测试不同场景.jpg)
 
 
-三、调试数据记录
+三.调试数据记录
 
 ![这里是图片描述](3510.jpg)
 
  最终选择将FILTER_LEN设为 10
 ---
 
-四、遇到的问题与解决
+四.遇到的问题与解决
 
 问题：拍桌子时灯还是会亮
 
@@ -688,9 +680,165 @@ else if (filt < threshold_off) {
 
 分析：连续拍在物理上等同于持续声音，系统判断为有效触发，属于正常现象，不做特殊处理
 
-五、最终效果
+五.最终效果
 
 说话时灯立即亮，，安静时灯稳定灭，拍一下桌子不会误触发，灯不会因环境噪声频繁闪烁
+
+2026年3月25日: 自适应阈值实现与项目收尾
+
+一、任务目标
+
+1. 让系统能自动适应不同环境音量，避免手动调参（考虑到一个设备要到不同环境下工作） 
+2. 完成项目收尾，准备展示材料
+
+二、具体我是怎么做的
+
+加入自适应阈值
+
+在 main 函数初始化阶段，先采样 20 次滤波值，取平均作为环境底噪：
+
+```c
+uint16_t base_noise = 0;
+for (int i = 0; i < 20; i++) {
+    base_noise += AD_GetFiltered();
+    Delay_ms(10);
+}
+base_noise /= 20;
+threshold_on = base_noise * 2 + 50;
+threshold_off = base_noise + 20;
+```
+
+同时每隔 30 秒重新校准一次：
+
+```c
+static uint32_t adapt_timer = 0;
+if (++adapt_timer >= 600) {   // 30秒 = 600 * 50ms
+    // 重新采样环境底噪，更新阈值
+    adapt_timer = 0;
+}
+```
+
+效果：系统能自动适应安静房间和嘈杂环境，无需手动改代码
+
+三.项目收尾
+
+经过多轮测试与调优，确定以下最终方案：
+
+![这里是图片描述](最终方案.jpg)
+
+
+核心代码说明
+
+1. 滑动平均滤波
+
+```c
+#define FILTER_LEN 10
+
+uint16_t AD_GetFiltered(void) {
+    static uint16_t buffer[FILTER_LEN] = {0};
+    static uint8_t index = 0;
+    uint32_t sum = 0;
+
+    buffer[index] = AD_GetValue();
+    index = (index + 1) % FILTER_LEN;
+
+    for (int i = 0; i < FILTER_LEN; i++) sum += buffer[i];
+    return sum / FILTER_LEN;
+}
+```
+
+2. 双阈值防抖逻辑
+
+```c
+if (raw > threshold_on) {
+    stable_cnt++;
+    if (stable_cnt >= 3) {
+        led_state = 1;
+        stable_cnt = 3;
+    }
+}
+else if (filt < threshold_off) {
+    if (stable_cnt > 0) stable_cnt--;
+    if (stable_cnt == 0) {
+        led_state = 0;
+    }
+}
+```
+
+3. 自适应阈值
+
+```c
+// 初始化：采样 20 次取平均
+uint16_t base_noise = 0;
+for (int i = 0; i < 20; i++) {
+    base_noise += AD_GetFiltered();
+    Delay_ms(10);
+}
+base_noise /= 20;
+threshold_on = base_noise * 2 + 50;
+threshold_off = base_noise + 20;
+
+// 每 30 秒重新校准
+static uint32_t adapt_timer = 0;
+if (++adapt_timer >= 600) {
+    // 重新采样，更新阈值
+    adapt_timer = 0;
+}
+```
+
+4. 条件编译控制调试
+
+```c
+#define DEBUG_ENABLE 0   // 调试时改为 1
+
+#if DEBUG_ENABLE
+    Serial_Init();
+    // 打印 Raw、Filt、State 等
+#endif
+```
+
+---
+
+测试数据记录
+
+测试项 窗口长度 3 窗口长度 5 窗口长度 10
+
+安静时 Filt 20~28 22~34 22~30
+
+说话时峰值 450 394 266
+
+拍桌子误触发 会 偶尔 基本不
+
+灯稳定性 偶尔闪 基本不闪 稳定
+
+最终选择：窗口长度 10
+
+最终效果
+响应速度：说话后约 150ms 亮灯（3 × 50ms）
+
+抗干扰：拍桌子不会误触发，连续拍会亮（物理正常）
+
+环境自适应：安静房间和嘈杂环境都能稳定工作
+
+可调试：串口打印可开关，不影响正常使用
+
+代码结构：模块化清晰，便于后续扩展
+
+后续可扩展方向
+
+加 OLED 显示当前音量
+
+用 PWM 实现声音越大灯越亮
+
+增加蓝牙模块，手机控制阈值
+
+移植到 RTOS，学习多任务调度
+
+
+
+
+
+
 
 
 如何运行我的项目
