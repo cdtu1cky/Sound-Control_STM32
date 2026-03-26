@@ -17,29 +17,109 @@
 ## 功能展示
 1.  **基础功能**：声音触发LED开关。
 2.  **算法升级**：采用软件滤波，提高了在嘈杂环境下的识别准确性。
-3.  **效果演示**：[在这里粘贴你后期拍摄的视频链接]
+3.  **效果演示**：哔哩哔哩https://b23.tv/UO9EE2F
 
 ## 核心代码与算法
 这里我重点解决了**环境噪声干扰**的问题。
-### 移动平均滤波算法
-我编写了一个滤波函数来让信号更稳定。
+1. 移动平均滤波算法
+
+我编写了一个滤波函数，采用滑动窗口平均，有效抑制 ADC 采样值的抖动。
+
 ```c
-// 示例：移动平均滤波函数核心部分
-#define SAMPLE_SIZE 10
-int filter(int newValue) {
-    static int history[SAMPLE_SIZE] = {0};
-    static int index = 0;
-    int sum = 0;
-    
-    history[index] = newValue;
-    index = (index + 1) % SAMPLE_SIZE;
-    
-    for(int i=0; i<SAMPLE_SIZE; i++) {
-        sum += history[i];
+// 滑动平均滤波函数（窗口长度 10）
+#define FILTER_LEN 10
+
+uint16_t AD_GetFiltered(void) {
+    static uint16_t buffer[FILTER_LEN] = {0};
+    static uint8_t index = 0;
+    uint32_t sum = 0;
+
+    // 将新采样值存入当前 index 位置
+    buffer[index] = AD_GetValue();
+    // index 循环 0 ~ FILTER_LEN-1
+    index = (index + 1) % FILTER_LEN;
+
+    // 累加所有历史数据
+    for (int i = 0; i < FILTER_LEN; i++) {
+        sum += buffer[i];
     }
-    return sum / SAMPLE_SIZE;
+    // 返回平均值
+    return sum / FILTER_LEN;
 }
 ```
+2. 双阈值防抖策略
+
+为了兼顾快速响应与平稳熄灭，我采用双阈值 + 计数防抖的方案：
+
+```c
+// 亮灯条件：原始值连续 3 次超过高阈值
+if (raw > threshold_on) {
+    stable_cnt++;
+    if (stable_cnt >= 3) {
+        led_state = 1;
+        stable_cnt = 3;
+    }
+}
+// 灭灯条件：滤波值连续 3 次低于低阈值
+else if (filt < threshold_off) {
+    if (stable_cnt > 0) stable_cnt--;
+    if (stable_cnt == 0) {
+        led_state = 0;
+    }
+}
+```
+
+作用：
+
+· raw（原始值）反应快，用于快速亮灯
+· filt（滤波值）稳定平滑，用于平稳灭灯
+· 计数防抖过滤单次噪声（如拍桌子），连续 3 次才改变状态
+
+---
+
+3. 自适应阈值
+
+为了让系统适应不同环境音量，我加入了环境底噪自动校准：
+
+```c
+// 初始化：采样 20 次取平均作为环境底噪
+uint16_t base_noise = 0;
+for (int i = 0; i < 20; i++) {
+    base_noise += AD_GetFiltered();
+    Delay_ms(10);
+}
+base_noise /= 20;
+threshold_on = base_noise * 2 + 50;   // 亮灯阈值
+threshold_off = base_noise + 20;       // 灭灯阈值
+
+// 每隔 30 秒重新校准
+static uint32_t adapt_timer = 0;
+if (++adapt_timer >= 600) {
+    // 重新采样，更新阈值
+    adapt_timer = 0;
+}
+```
+
+---
+
+4. 条件编译控制调试
+
+为保证实时性，用 DEBUG_ENABLE 控制串口打印的开关：
+
+```c
+#define DEBUG_ENABLE 0   // 调试时改为 1
+
+#if DEBUG_ENABLE
+    Serial_Init();
+    Serial_SendString("Start\r\n");
+    // 每 2 秒打印一次 Raw、Filt、State
+#endif
+```
+
+调试时开启打印，正常运行时完全关闭，不影响主循环响应速度。
+
+---
+
 开发日志（学习记录）
 这是我的项目成长日记，记录了所有关键问题和解决方法。
 
