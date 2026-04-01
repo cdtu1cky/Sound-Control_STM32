@@ -28,30 +28,12 @@
 - 阈值计算：安静 22至29，说话 162至552 → 阈值 95
 - 抗干扰：单次拍桌子不亮，连续 5 次以上偶发（物理正常）
   
-## 项目结构
-```
-Sound-Control_STM32/
-├──README.md               # 项目说明
-├──docs/                   # 文档与图片
-│├── hardware.jpg
-│├── debug_log.md
-│└── demo.mp4
-├──src/                    # 源码
-│├── main.c
-│├── AD.c / AD.h
-│├── LED.c / LED.h
-│├── Serial.c / Serial.h
-│└── Delay.c / Delay.h
-└──project/                # Keil 工程文件
-└── SoundControl.uvprojx
-
-```
 ## 快速开始
 如何运行我的项目
 
 硬件连接：按照原理图连接STM32、麦克风模块和LED。
 
-软件准备：使用Keil MDK打开工程文件。
+软件准备：使用Keil MDK打开工程文件:代码.zip
 
 编译下载：连接USB线，编译代码并下载到单片机。
 
