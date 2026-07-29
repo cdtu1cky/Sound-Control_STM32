@@ -712,6 +712,9 @@ int main(void)
 }
 
 ```
+
+
+
 下一步计划
 微调双阈值参数，适应实际使用环境
 
@@ -956,6 +959,87 @@ if (++adapt_timer >= 600) {
 移植到 RTOS，学习多任务调度
 
 
+2026年7月20日~21日:着手准备项目升级的计划：基于stm32的智能声控灯系统--->基于STM32+FreeRTOS的智能声音监测终端
+
+计划：1.去掉软件延迟，改用定时器中断----目的是整个代码不再有任何Delay_ms()软件死循环等待，全部由SysTick硬件定时器中断驱动计时，CPU可以在循环间隙处理其他任务。
+
+2.加入状态机----系统状态从“裸机while循环”升级为“基于状态切换的框架”。
+
+3.移植FreeRTOS----将声控逻辑拆成独立任务（采集任务、处理任务、LED控制任务），用队列通信。
+
+4.增加串口指令控制----增加一个UART任务，解析LED_ON、LED_OFF、STATUS等指令.
+
+5.添加OLED驱动----增加OLED.c和OLED.h，初始化I2C接口，实现基本显示功能，在主循环中调用OLED显示函数，实时更新显示当前音量、LED状态、系统模式等信息。
+
+2026年7月21日~23日:使用定时器中断全面替换软件延迟
+一、任务目标
+
+将项目中所有基于Delay_ms()的软件延时，替换为基于SysTick定时器中断的硬件计时，实现非阻塞式的系统调度。
+
+二.具体我是怎么做的
+1.编写Timer.c模块，使用SysTick_Config(SystemCoreClock / 1000)配置系统滴答定时器，产生1ms周期的中断。
+
+2.在SysTick_Handler中断服务函数中，通过IncTick()递增全局计数器uwTick，提供一个全局可访问的系统时间基准。
+
+3.编写GetTick()函数，用于获取当前系统运行时间（单位：ms）。
+```c
+#include "Timer.h"
+static __IO uint32_t uwTick = 0;    // 系统滴答计数器，每1ms由中断递增一次
+void Timer_Init(void)
+{
+    if (SysTick_Config(SystemCoreClock / 1000))
+    {
+        while (1);
+    }
+}
+
+uint32_t GetTick(void)
+{
+    return uwTick;   // 返回当前已经过去了多少毫秒
+}
+
+void IncTick(void)  //滴答计数器递增（由SysTick_Handler中断服务函数调用）
+{
+    uwTick++;
+}
+```
+
+
+4.在main.c的主循环中，移除所有Delay_ms()调用，改为通过GetTick()判断时间间隔来实现周期性任务调度：
+```c
+ if (GetTick() - tick_main >= 50)    //如果距离上次执行已经过了50ms，就执行一次核心逻辑，并更新计时起点。 这样主循环就不会被Delay卡住，它一直在运行，只是每隔50ms才执行一次ADC采集和LED控制。
+        {
+            tick_main = GetTick();              // 更新计时起点
+```
+
+· 每50ms执行一次ADC采集、滤波、阈值判断和LED控制；
+
+· 每30秒触发一次环境底噪重校准；
+
+· 调试模式下，每2秒打印一次串口数据。
+```c
+//调试模式
+#if DEBUG_ENABLE
+ if (GetTick() - tick_dbg >= 2000)
+        {
+            tick_dbg = GetTick();
+            char buf[60];
+            sprintf(buf, "Raw:%4d Filt:%4d Cnt:%d State:%d\r\n",
+                    raw, filt, stable_cnt, led_state);
+            Serial_SendString(buf);
+        }
+#endif
+```
+
+三、本次升级的收获
+
+1.CPU不再被软件延时阻塞，主循环可以持续运行，为后续引入FreeRTOS打下基础。
+
+2.系统时间基准统一由硬件定时器提供，不再依赖for循环空转，计时精度更高。
+
+四、下一步计划
+
+继续推进状态机的实现，将系统运行逻辑进一步模块化，为移植FreeRTOS做好准备。
 
 
 
